@@ -1,11 +1,14 @@
 # Modrinth MCP connector
 
 A Claude connector for managing your Modrinth projects, running as a free Cloudflare Worker.
-Your Modrinth token goes **in the URL path**. Nothing is stored. The Worker reads the token on every request and only sends it to `api.modrinth.com`.
+You give it your Modrinth personal access token as an **API key header**. Nothing is stored. The Worker reads the token on every request and only sends it to `api.modrinth.com`.
 
 ```
-https://modrinth-mcp.<your-subdomain>.workers.dev/<your-modrinth-token>/mcp
+URL:     https://modrinth-mcp.<your-subdomain>.workers.dev/mcp
+Header:  Authorization: Bearer <your-modrinth-token>
 ```
+
+`x-api-key: <token>` works too.
 
 ## Tools
 
@@ -52,15 +55,26 @@ Click the button and sign in to Cloudflare. It copies this repo to your GitHub a
    ```
    Wrangler prints your URL, e.g. `https://modrinth-mcp.yourname.workers.dev`.
 
-3. **Add it to Claude.** In Claude, go to Settings → Connectors → **Add custom connector**. Paste:
-   ```
-   https://modrinth-mcp.yourname.workers.dev/mrp_yourTokenHere/mcp
-   ```
-   Leave the OAuth fields empty.
+3. **Add it to Claude.**
+   - **claude.ai / Claude Desktop:** go to Settings → Connectors → **Add custom connector**. Enter `https://modrinth-mcp.yourname.workers.dev/mcp`. Under **Request headers**, add `Authorization` with the value `Bearer mrp_yourTokenHere`. Leave the OAuth fields empty.
+     The Request headers section is in beta. It only appears for some organizations, and only an organization Owner sees it. If you don't have it, use the fallback below.
+   - **Claude Code:**
+     ```bash
+     claude mcp add --transport http modrinth https://modrinth-mcp.yourname.workers.dev/mcp \
+       --header "Authorization: Bearer mrp_yourTokenHere"
+     ```
+
+### Fallback: token in the URL
+
+For clients that can't send headers, the token can go in the path instead:
+```
+https://modrinth-mcp.yourname.workers.dev/mrp_yourTokenHere/mcp
+```
+This is less safe, because the whole URL then works as a password.
 
 ## Security
 
-- **The URL is a password.** Anyone with it can edit your Modrinth projects. Don't share it or post it anywhere.
+- **The token is a password.** Anyone with it can edit your Modrinth projects. Using a header keeps it out of the URL. If you use the URL fallback, treat the whole URL as a password.
 - To cut off access, delete or regenerate the token on Modrinth. The old URL stops working immediately.
 - Logging is turned off in `wrangler.jsonc` (`observability.enabled: false`), so request URLs aren't stored in Cloudflare's logs. Leave it off.
 - Give the token a short expiry and only the scopes listed above.
@@ -68,7 +82,7 @@ Click the button and sign in to Cloudflare. It copies this repo to your GitHub a
 ## Local development
 
 ```bash
-npm run dev     # http://127.0.0.1:8787/<token>/mcp
+npm run dev     # http://127.0.0.1:8787/mcp  (send the Authorization header)
 npm run check   # typecheck
 ```
 

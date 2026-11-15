@@ -1,10 +1,14 @@
 /**
  * Modrinth MCP connector - a Cloudflare Worker.
  *
- * Connect Claude to:   https://<your-worker>.workers.dev/<MODRINTH_TOKEN>/mcp
+ * Connect Claude to:   https://<your-worker>.workers.dev/mcp
+ * and send your Modrinth personal access token as an API key header:
+ *     Authorization: Bearer mrp_...      (or  x-api-key: mrp_...)
  *
- * The Modrinth personal access token is read from the URL path on every request and
- * only ever sent to api.modrinth.com. It is never stored or logged.
+ * Fallback for clients that can't set headers: https://<your-worker>.workers.dev/<token>/mcp
+ *
+ * The token is read on every request and only ever sent to api.modrinth.com.
+ * It is never stored or logged.
  */
 import { unzipSync, strFromU8 } from "fflate";
 
@@ -21,16 +25,29 @@ export default {
 		const url = new URL(req.url);
 		const parts = url.pathname.split("/").filter(Boolean);
 
+		if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
+
 		if (parts.length === 0) {
-			return text("Modrinth MCP connector. Add it to Claude as https://<this-host>/<your-modrinth-token>/mcp", 200);
-		}
-		// /<token>/mcp  (or /<token> on its own)
-		const token = decodeURIComponent(parts[0]);
-		if (!token.startsWith("mrp_") || (parts.length > 1 && parts[1] !== "mcp") || parts.length > 2) {
-			return text("Not found. Use /<your-modrinth-token>/mcp", 404);
+			return text("Modrinth MCP connector. Connect to https://<this-host>/mcp with header 'Authorization: Bearer <your-modrinth-token>'.", 200);
 		}
 
-		if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
+		let token: string | undefined;
+		if (parts.length === 1 && parts[0] === "mcp") {
+			// main way: token in a header
+			token = tokenFromHeaders(req.headers);
+			if (!token) {
+				return text("Missing Modrinth token. Send it as 'Authorization: Bearer mrp_...' or 'x-api-key: mrp_...'.", 401);
+			}
+		} else if (parts.length === 2 && parts[1] === "mcp" && decodeURIComponent(parts[0]).startsWith("mrp_")) {
+			// fallback: /<token>/mcp for clients that can't set headers
+			token = decodeURIComponent(parts[0]);
+		} else {
+			return text("Not found. Use /mcp with an Authorization header.", 404);
+		}
+		if (!token.startsWith("mrp_")) {
+			return text("That doesn't look like a Modrinth personal access token (they start with mrp_).", 401);
+		}
+
 		if (req.method === "GET") return text("This endpoint speaks MCP over POST.", 405, { Allow: "POST" });
 		if (req.method === "DELETE") return new Response(null, { status: 204, headers: cors() });
 		if (req.method !== "POST") return text("Method not allowed", 405, { Allow: "POST" });
@@ -52,10 +69,16 @@ export default {
 	},
 };
 
+function tokenFromHeaders(h: Headers): string | undefined {
+	const auth = h.get("authorization")?.trim();
+	if (auth) return auth.replace(/^Bearer\s+/i, "").trim() || undefined;
+	return (h.get("x-api-key") ?? h.get("x-auth-token"))?.trim() || undefined;
+}
+
 function cors(extra: Record<string, string> = {}) {
 	return {
 		"Access-Control-Allow-Origin": "*",
-		"Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id, Mcp-Protocol-Version, Authorization",
+		"Access-Control-Allow-Headers": "Content-Type, Mcp-Session-Id, Mcp-Protocol-Version, Authorization, X-Api-Key, X-Auth-Token",
 		"Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
 		...extra,
 	};
