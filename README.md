@@ -35,7 +35,7 @@ The Minecraft version comes from the jar (`~26.2`, `[26.2,26.3)`, `api-version: 
 
 ## One-click deploy
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/p1e2r/hmm)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/p1e2r/modrinth-mcp)
 
 Click the button and sign in to Cloudflare. It copies this repo to your GitHub account and deploys the Worker. Then do steps 1 and 3 below.
 
